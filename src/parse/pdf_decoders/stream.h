@@ -1,5 +1,6 @@
 //-*-C++-*-
 
+
 #ifndef PDF_STREAM_DECODER_H
 #define PDF_STREAM_DECODER_H
 
@@ -385,19 +386,62 @@ namespace pdflib
       if(xobj.has_fonts())
         {
           QPDFObjectHandle xobj_fonts = xobj.get_fonts();
-          page_fonts_->set(xobj_fonts, timings);
+          // Skip set() if all fonts are already loaded in the parent chain to avoid O(N²) reloading
+          auto font_keys = xobj_fonts.getKeys();
+          bool fonts_all_loaded = !font_keys.empty();
+          for(auto& k : font_keys)
+            {
+              if(page_fonts_->count(k) == 0)
+                {
+                  fonts_all_loaded = false;
+                  break;
+                }
+            }
+          if(!fonts_all_loaded)
+            {
+              page_fonts_->set(xobj_fonts, timings);
+            }
         }
 
       if(xobj.has_grphs())
         {
           QPDFObjectHandle xobj_grphs = xobj.get_grphs();
-          page_grphs_->set(xobj_grphs, timings);
+          // Skip set() if all graphics states are already loaded in the parent chain to avoid O(N²) reloading
+          auto grph_keys = xobj_grphs.getKeys();
+          bool grphs_all_loaded = !grph_keys.empty();
+          for(auto& k : grph_keys)
+            {
+              if(page_grphs_->count(k) == 0)
+                {
+                  grphs_all_loaded = false;
+                  break;
+                }
+            }
+          if(!grphs_all_loaded)
+            {
+              page_grphs_->set(xobj_grphs, timings);
+            }
         }
 
       if(xobj.has_xobjects())
         {
           QPDFObjectHandle xobj_xobjects = xobj.get_xobjects();
-          page_xobjects_->set(xobj_xobjects, timings);
+          // Skip set() if all XObjects are already loaded in the parent chain.
+          // Prevents O(N²) reloading when do_form() is called N times and each call reloads all N resources.
+          auto keys = xobj_xobjects.getKeys();
+          bool all_already_loaded = !keys.empty();
+          for(auto& k : keys)
+            {
+              if(!page_xobjects_->has(k))
+                {
+                  all_already_loaded = false;
+                  break;
+                }
+            }
+          if(!all_already_loaded)
+            {
+              page_xobjects_->set(xobj_xobjects, timings);
+            }
         }
     }
 
